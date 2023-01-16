@@ -1,13 +1,12 @@
 import boto3
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
-from s3fs.core import S3FileSystem
+from pyspark.sql import SparkSession
 
 def search_addresses(addresses, index_name, language, max_results, bucket_name, file_name):
     # Create a Location client
     location = boto3.client('location')
 
-    s3 = S3FileSystem()
     # Create a ThreadPoolExecutor
     with ThreadPoolExecutor() as executor:
         # submit a task for each address
@@ -22,8 +21,10 @@ def search_addresses(addresses, index_name, language, max_results, bucket_name, 
                 df = df.append(pd.json_normalize(response))
             except Exception as exc:
                 print(f'{address} generated an exception: {exc}')
+    spark = SparkSession.builder.appName("AWS_location_search").getOrCreate()
+    df = spark.createDataFrame(df)
     # write the dataframe to parquet
-    s3.to_parquet(df, f's3://{bucket_name}/{file_name}', index=False)
+    df.write.mode("append").parquet(f"s3a://{bucket_name}/{file_name}")
 
 def search_address(address, index_name, language, max_results):
     response = location.search_place_index_for_text(
