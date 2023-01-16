@@ -44,13 +44,8 @@ def search_addresses(addresses, index_name, language, max_results, bucket_name, 
     # write the dataframe to parquet
     df.write.mode("append").parquet(f"s3a://{bucket_name}/{file_name}")
     # write the failed addresses to text files in another S3 folder
-    s3 = boto3.client('s3')
-    for address in failed_addresses:
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=f'failed_addresses/{address}.txt',
-            Body=address
-        )
+    failed_addresses_rdd = spark.sparkContext.parallelize(failed_addresses)
+    failed_addresses_rdd.coalesce(1).saveAsTextFile(f"s3a://{bucket_name}/failed_addresses/failed_addresses.txt")
 
 def search_address(address, index_name, language, max_results):
     response = location.search_place_index_for_text(
